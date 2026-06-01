@@ -14,7 +14,6 @@ from tool.hailo_model import HAILO, rescale_network_outputs, SCRFDPostProc
 from tool.camera_manager import get_camera_manager
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QTimer, QThread, pyqtSignal
-from PyQt5.QtWidgets import QMessageBox, QApplication, QDialog, QFormLayout, QLineEdit, QDialogButtonBox
 import math
 import sys
 from tool.database_interact import get_csv_users, get_server_users, create_user
