@@ -6,7 +6,7 @@ from gi.repository import Gst, GLib
 Gst.init(None)
 
 RTSP_URL="rtsp://admin:Tiandy%40123@192.168.1.103:554/Streaming/Channels/101"
-HEF_PATH = "./models/yolov11n-face.hef" 
+HEF_PATH = "/home/mandlac/intern/github/Face_recognition/models/yolov11n-face.hef" 
 PP_PATH = "./models/libyolo_hailortpp_postprocess.so"
 F_EXTRACTION= "./models/arcface_mobilefacenet-2.hef"
 
