@@ -5,13 +5,13 @@ from gi.repository import Gst, GLib
 
 Gst.init(None)
 
-RTSP_URL="rtsp://admin:Tiandy%40123@192.168.1.103:554/Streaming/Channels/101"
-HEF_PATH = "./models/retinaface_mobilenet_v1.hef" 
-PP_PATH = "./models/libvms_croppers.so"
-F_EXTRACTION= "./models/arcface_mobilefacenet-2.hef"
-FR_PATH = "./models/libface_recognition_post.so"
+RTSP_URL = "rtsp://admin:Tiandy%40123@192.168.1.103:554/Streaming/Channels/101"
 
-
+# PATHS (Ensure these paths match your environment installations)
+DET_HEF = "./models/retinaface_mobilenet_v1.hef" 
+DET_PP  = "./models/libface_detection_post.so" # Added face detection post-process
+REC_HEF = "./models/arcface_mobilefacenet-2.hef"
+REC_PP  = "./models/libface_recognition_post.so"
 
 pipeline_str = f"""
 rtspsrc location={RTSP_URL} latency=100 protocols=udp !
@@ -19,27 +19,42 @@ rtph264depay !
 decodebin !
 videoconvert !
 videoscale !
-video/x-raw,width=640,height=640!
+video/x-raw,width=640,height=640 !
+queue name=prim_convert_q_sink !
+
+hailonet hef-path={DET_HEF} nms-score-threshold=0.01 nms-iou-threshold=0.03 output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
 queue !
-hailonet hef-path={HEF_PATH} nms-score-threshold=0.01 nms-iou-threshold=0.03 output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
+hailofilter so-path={DET_PP} qos=false !
 queue !
-hailofilter qos=false !
-queue !
-hailocropper so-path={PP_PATH} x=100,y=100,width=112,height=112 !
-queue !
-hailonet hef-path={F_EXTRACTION} nms-score-threshold=0.01 nms-iou-threshold=0.03 output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
-queue !
-hailofilter so-path={FR_PATH} qos=false !
-queue !
-hailooverlay !
-videoconvert !
-autovideosink  sync=false
+
+hailocropper name=cropper 
+    hailomuxer name=muxer
+
+cropper.src_0 ! 
+    queue name=hailo_face_rec_q ! 
+    hailonet hef-path={REC_HEF} nms-score-threshold=0.01 nms-iou-threshold=0.03 output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
+    queue ! 
+    hailofilter so-path={REC_PP} qos=false ! 
+    queue ! 
+    hailoaggregator ! 
+    muxer.sink_0
+
+cropper.src_1 ! 
+    queue name=hailo_bypass_q ! 
+    muxer.sink_1
+
+muxer.src ! 
+    queue !
+    hailooverlay !
+    videoconvert !
+    autovideosink sync=false
 """
 
-pipeline=Gst.parse_launch(pipeline_str)
-mainLoop=GLib.MainLoop()
+pipeline = Gst.parse_launch(pipeline_str)
+mainLoop = GLib.MainLoop()
 pipeline.set_state(Gst.State.PLAYING)
-print("pipeline stream is running")
+print("Pipeline stream is running safely...")
+
 try:
     mainLoop.run()
 except KeyboardInterrupt:
