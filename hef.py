@@ -22,8 +22,7 @@ video/x-raw,width=112,height=112 !
 queue !
 hailonet hef-path={HEF_PATH} nms-score-threshold=0.01 nms-iou-threshold=0.03 output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
 queue !
-hailonet hef-path={F_EXTRACTION} output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
-queue !
+
 hailofilter so-path={PP_PATH} qos=false !
 queue !
 hailooverlay !
