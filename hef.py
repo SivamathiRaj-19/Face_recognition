@@ -6,9 +6,10 @@ from gi.repository import Gst, GLib
 Gst.init(None)
 
 RTSP_URL="rtsp://admin:Tiandy%40123@192.168.1.103:554/Streaming/Channels/101"
-HEF_PATH = "./models/yolov11n-face.hef" 
-PP_PATH = "./models/libyolo_hailortpp_postprocess.so"
+HEF_PATH = "./models/retinaface_mobilenet_v1.hef" 
+PP_PATH = "./models/libvms_croppers.so"
 F_EXTRACTION= "./models/arcface_mobilefacenet-2.hef"
+FR_PATH = "./models/libface_recognition_post.so"
 
 
 
@@ -22,9 +23,13 @@ video/x-raw,width=640,height=640!
 queue !
 hailonet hef-path={HEF_PATH} nms-score-threshold=0.01 nms-iou-threshold=0.03 output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
 queue !
-hailofilter so-path={PP_PATH} qos=false !
+hailofilter qos=false !
 queue !
-hailonet hef-path={F_EXTRACTION} output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
+hailocropper so-path={PP_PATH} x=100,y=100,width=112,height=112 !
+queue !
+hailonet hef-path={F_EXTRACTION} nms-score-threshold=0.01 nms-iou-threshold=0.03 output-format-type=HAILO_FORMAT_TYPE_FLOAT32 !
+queue !
+hailofilter so-path={FR_PATH} qos=false !
 queue !
 hailooverlay !
 videoconvert !
