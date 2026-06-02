@@ -119,7 +119,7 @@ class HailoSCRFDRTSPWrapper:
         
         # Open Hailo VDevice hardware framework
         with VDevice() as target_device:
-            configure_params = ConfigureParams.create_from_hef(self.hef, interface=HailoStreamInterface.PCIE)
+            configure_params = ConfigureParams.create_from_hef(self.hef, interface=HailoStreamInterface.PCIe)
             network_group = target_device.configure(self.hef, configure_params)[0]
             
             input_vstream_params = InputVStreamParams.make_from_network_group(network_group, format_type=FormatType.FLOAT32)
@@ -177,7 +177,7 @@ class HailoSCRFDRTSPWrapper:
 # --- Live Execution Example ---
 if __name__ == "__main__":
     # Standard format: "rtsp://username:password@ip_address:port/h264_stream"
-    RTSP_URL = "rtsp://192.168.1.100:554/stream1"
+    RTSP_URL = "rtsp://admin:Tiandy%40123@192.168.1.103:554/Streaming/Channels/101"
     
-    wrapper = HailoSCRFDRTSPWrapper(hef_path="scrfd_500m.hef")
+    wrapper = HailoSCRFDRTSPWrapper(hef_path="./models/scrfd_500m.hef")
     wrapper.start_stream_inference(RTSP_URL)
