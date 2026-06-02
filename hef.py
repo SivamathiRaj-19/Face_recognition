@@ -10,6 +10,7 @@ PP_PATH = "./models/libyolo_hailortpp_postprocess.so"
 HEF_PATH = "./models/lightface_slim.hef"
 FE_PATH = "./models/arcface_mobilefacenet-2.hef"
 PO_PATH = "./models/libface_recognition_post.so"
+CROPPPER_PATH = "./models/libvms_croppers.so"
 
 
 
@@ -23,7 +24,7 @@ queue !
 hailofilter so-path={PP_PATH} qos=false ! 
 queue !
 hailocropper name=crop 
-    so-path=./models/libvms_croppers.so 
+    so-path={CROPPPER_PATH} 
     function-name=face_crop 
     use-letterbox=true internal-offset=true ! 
 hailoaggregator name=agg ! 
