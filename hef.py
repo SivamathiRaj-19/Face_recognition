@@ -19,7 +19,7 @@ rtspsrc location={RTSP_URL} latency=100 protocols=tcp !
 rtph264depay ! decodebin ! videoconvert ! videoscale !
 video/x-raw, width=320, height=240, format=RGB ! 
 queue !
-hailonet hef-path={HEF_PATH} vdevice-key=1 ! 
+hailonet hef-path={HEF_PATH} ! 
 queue !
 hailofilter so-path={PP_PATH} qos=false ! 
 queue !
@@ -32,7 +32,7 @@ queue !
 hailooverlay ! videoconvert ! autovideosink sync=false
 crop. ! queue ! 
 video/x-raw, width=112, height=112, format=RGB ! 
-hailonet hef-path={FE_PATH} vdevice-key=1 ! 
+hailonet hef-path={FE_PATH}  ! 
 queue ! 
 hailofilter so-path={PO_PATH} qos=false ! 
 queue ! 
