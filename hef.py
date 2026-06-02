@@ -8,9 +8,6 @@ Gst.init(None)
 RTSP_URL="rtsp://admin:Tiandy%40123@192.168.1.103:554/Streaming/Channels/101" 
 PP_PATH = "./models/libscrfd.so"
 HEF_PATH = "./models/scrfd_500m.hef"
-FE_PATH = "./models/arcface_mobilefacenet-2.hef"
-PO_PATH = "./models/libface_recognition_post.so"
-CROPPPER_PATH = "./models/libvms_croppers.so"
 
 
 pipeline_str = f"""
@@ -21,18 +18,8 @@ queue !
 hailonet hef-path={HEF_PATH} ! 
 queue !
 hailofilter so-path={PP_PATH} qos=false ! 
-queue !
-hailocropper name=crop so-path={CROPPPER_PATH} function-name=Z19algorithm_face_cropjjRK9HailoBBoxffuse-letterbox=true internal-offset=true ! 
-hailoaggregator name=agg ! 
 queue ! 
 hailooverlay ! videoconvert ! autovideosink sync=false
-crop. ! queue ! 
-video/x-raw, width=112, height=112, format=RGB ! 
-hailonet hef-path={FE_PATH} ! 
-queue ! 
-hailofilter so-path={PO_PATH} qos=false ! 
-queue ! 
-agg.
 """
 
 
