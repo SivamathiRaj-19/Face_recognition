@@ -23,7 +23,7 @@ hailonet hef-path={HEF_PATH} !
 queue !
 hailofilter so-path={PP_PATH} qos=false ! 
 queue !
-hailocropper name=crop so-path={CROPPPER_PATH} function-name=face_crop use-letterbox=true internal-offset=true ! 
+hailocropper name=crop so-path={CROPPPER_PATH} function-name=Z19algorithm_face_cropjjRK9HailoBBoxffuse-letterbox=true internal-offset=true ! 
 hailoaggregator name=agg ! 
 queue ! 
 hailooverlay ! videoconvert ! autovideosink sync=false
