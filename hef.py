@@ -7,7 +7,7 @@ Gst.init(None)
 
 RTSP_URL="rtsp://admin:Tiandy%40123@192.168.1.103:554/Streaming/Channels/101" 
 PP_PATH = "./models/libyolo_hailortpp_postprocess.so"
-HEF_PATH = "./models/lightface_slim.hef"
+HEF_PATH = "./models/scrfd_500m.hef"
 FE_PATH = "./models/arcface_mobilefacenet-2.hef"
 PO_PATH = "./models/libface_recognition_post.so"
 
