@@ -15,26 +15,29 @@ PO_PATH = "./models/libface_recognition_post.so"
 
 pipeline_str = f"""
 rtspsrc location={RTSP_URL} latency=100 protocols=tcp !
-rtph264depay !
-decodebin !
-videoconvert !
-videoscale !
-video/x-raw, width=320, height=240, format=RGB  !
+rtph264depay ! decodebin ! videoconvert ! videoscale !
+video/x-raw, width=320, height=240, format=RGB ! 
 queue !
-hailonet hef-path={HEF_PATH} !
+hailonet hef-path={HEF_PATH} ! 
 queue !
-hailofilter so-path={PP_PATH} qos=false !
+hailofilter so-path={PP_PATH} qos=false ! 
 queue !
-video/x-raw, width=112, height=112, format=RGB !
-queue !
-hailonet hef-path={FE_PATH} !
-queue !
-hailofilter so-path={PO_PATH} qos=false !
-queue !
-hailooverlay !
-videoconvert !
-autovideosink  sync=false
+hailocropper name=crop 
+    so-path=/path/to/libwhole_buffer.so 
+    function-name=create_crops 
+    use-letterbox=true internal-offset=true ! 
+hailoaggregator name=agg ! 
+queue ! 
+hailooverlay ! videoconvert ! autovideosink sync=false
+crop. ! queue ! 
+video/x-raw, width=112, height=112, format=RGB ! 
+hailonet hef-path={FE_PATH} ! 
+queue ! 
+hailofilter so-path={PO_PATH} qos=false ! 
+queue ! 
+agg.
 """
+
 
 pipeline=Gst.parse_launch(pipeline_str)
 mainLoop=GLib.MainLoop()
