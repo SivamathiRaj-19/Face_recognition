@@ -9,9 +9,8 @@ root_path = os.path.abspath(os.path.dirname(__file__))
 if root_path not in sys.path:
     sys.path.insert(0, root_path)
 
-from tool.hailo_model import HAILO
-from hailo_service.hailo_model import SCRFD_HAILO
-from cam_service.cam import RTSP_URL
+from hailo_service import HAILO, SCRFD_HAILO
+from cam_service import RTSP_URL
 
 DB_PATH = "face_db.npy"
 
