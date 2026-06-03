@@ -263,23 +263,121 @@ def rescale_network_outputs(outputs):
     landmark_layer_names = ["scrfd_500m/conv25", "scrfd_500m/conv34", "scrfd_500m/conv40"]
 
     rescaled_outputs = []
-    for output_name, output in outputs.items():
-        output = output.astype(np.float32)
+    
+    # We must ensure the outputs are ordered as [box1, class1, landmark1, box2, class2, landmark2, ...]
+    for i in range(len(box_layer_names)):
+        layer_group = [box_layer_names[i], class_layer_names[i], landmark_layer_names[i]]
+        for output_name in layer_group:
+            if output_name not in outputs:
+                raise ValueError(f"Expected output {output_name} not found in model outputs")
+                
+            output = outputs[output_name].astype(np.float32)
 
-        if output_name in box_layer_names:
-            downscale_factor = 32
-            output = output / downscale_factor
-        elif output_name in class_layer_names:
-            output = output / 255
-        elif output_name in landmark_layer_names:
-            zero_point = 113
-            scale = 29
-            output = (output - zero_point) / scale
-        else:
-            raise ValueError(f"Unknown output name: {output_name}")
-        
-        reshaped = output.reshape(1, -1, output.shape[-1])
-        rescaled_outputs.append(reshaped)
+            if output_name in box_layer_names:
+                downscale_factor = 32
+                output = output / downscale_factor
+            elif output_name in class_layer_names:
+                output = output / 255
+            elif output_name in landmark_layer_names:
+                zero_point = 113
+                scale = 29
+                output = (output - zero_point) / scale
+            
+            reshaped = output.reshape(1, -1, output.shape[-1])
+            rescaled_outputs.append(reshaped)
 
     return rescaled_outputs
-    
+
+
+class SCRFD_HAILO():
+    def __init__(self, model_path, nms_iou_thresh=0.4, score_threshold=0.5):
+        self.executor = ThreadPoolExecutor(2)
+        self.input_queue = queue.Queue()
+        self.output_queue = queue.Queue()
+        batch_size = 1
+        
+        # We use ObjectDetectionUtils for basic preprocessing (resize + padding)
+        self.utils = ObjectDetectionUtils("label.txt")
+
+        self.hailo_inference = utils.HailoAsyncInference(
+            model_path, 
+            self.input_queue, self.output_queue, batch_size, output_type=None, send_original_frame=True
+        )
+        self.height, self.width, _ = self.hailo_inference.get_input_shape()
+
+        anchors = {
+            "steps": [8, 16, 32],
+            "min_sizes": [[16, 32], [64, 128], [256, 512]]
+        }
+        self.postproc = SCRFDPostProc(
+            image_dims=(self.height, self.width),
+            nms_iou_thresh=nms_iou_thresh,
+            score_threshold=score_threshold,
+            anchors=anchors
+        )
+
+        self.executor.submit(self.hailo_inference.run)
+
+
+    def __call__(self, frame):
+        if frame is None:
+            raise ValueError("Input Frame is None")
+        
+        processed_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        processed_frame = self.utils.preprocess(processed_frame, self.width, self.height)
+
+        self.input_queue.put(([frame], [processed_frame]))
+        
+        timeout_start = time.time()
+        while self.output_queue.empty():
+            if time.time() - timeout_start > 0.1:
+                print("Hailo inference timeout, skipping frame")
+                return None
+            time.sleep(0.001)
+
+        original_batch, raw_outputs = self.output_queue.get()
+        
+        # Process the raw outputs using SCRFD specific logic
+        rescaled = rescale_network_outputs(raw_outputs)
+        detections = self.postproc.main(rescaled)
+        
+        # Map detections back to the original image dimensions
+        img_height, img_width = frame.shape[:2]
+        size = max(img_height, img_width)
+        padding_length = int(abs(img_height - img_width) / 2)
+        
+        boxes = detections['detection_boxes'][0] # shape: (N, 4)
+        scores = detections['detection_scores'][0] # shape: (N,)
+        landmarks = detections['face_landmarks'][0] # shape: (N, 10)
+        num_dets = int(detections['num_detections'])
+        
+        scaled_boxes = []
+        scaled_landmarks = []
+        for i in range(num_dets):
+            box = boxes[i].copy()
+            landm = landmarks[i].copy()
+            
+            # Denormalize box
+            box = self.utils.denormalize_and_rm_pad(box, size, padding_length, img_height, img_width)
+            scaled_boxes.append(box)
+            
+            # Denormalize landmarks
+            for j in range(5):
+                landm_x = landm[j * 2] * size
+                landm_y = landm[j * 2 + 1] * size
+                
+                if img_width != size:
+                    landm_x -= padding_length
+                if img_height != size:
+                    landm_y -= padding_length
+                    
+                landm[j * 2] = landm_x
+                landm[j * 2 + 1] = landm_y
+            scaled_landmarks.append(landm)
+            
+        return {
+            "detection_boxes": np.array(scaled_boxes),
+            "detection_scores": scores[:num_dets],
+            "face_landmarks": np.array(scaled_landmarks),
+            "num_detections": num_dets
+        }
