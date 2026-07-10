@@ -58,8 +58,8 @@ class HAILO:
         )
         self.height, self.width, _ = hailo_inference.get_input_shape()
 
-        executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="hailo_generic")
-        executor.submit(hailo_inference.run)
+        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="hailo_generic")
+        self._executor.submit(hailo_inference.run)
 
     def __call__(self, frame):
         # Accept both a raw frame and a single-item list (feature_model([crop]))
@@ -155,8 +155,8 @@ class SCRFD_HAILO:
             anchors=self._ANCHORS,
         )
 
-        executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="hailo_scrfd")
-        executor.submit(hailo_inference.run)
+        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="hailo_scrfd")
+        self._executor.submit(hailo_inference.run)
 
     def __call__(self, frame):
         if frame is None:

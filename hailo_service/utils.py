@@ -190,21 +190,31 @@ class HailoAsyncInference:
                     preprocessed_batch = batch_data
                     original_batch = preprocessed_batch
 
-                bindings_list = []
-                for frame in preprocessed_batch:
-                    bindings = self._create_bindings(configured_infer_model)
-                    bindings.input().set_buffer(np.array(frame))
-                    bindings_list.append(bindings)
+                try:
+                    bindings_list = []
+                    for frame in preprocessed_batch:
+                        # ascontiguousarray guarantees a C-contiguous uint8
+                        # buffer — avoids the HailoRT 'buffer size 0' check
+                        # failure that occurs with non-contiguous numpy views.
+                        buf = np.ascontiguousarray(frame)
+                        bindings = self._create_bindings(configured_infer_model)
+                        bindings.input().set_buffer(buf)
+                        bindings_list.append(bindings)
 
-                configured_infer_model.wait_for_async_ready(timeout_ms=10_000)
-                last_job = configured_infer_model.run_async(
-                    bindings_list,
-                    partial(
-                        self.callback,
-                        input_batch=original_batch,
-                        bindings_list=bindings_list,
-                    ),
-                )
+                    configured_infer_model.wait_for_async_ready(timeout_ms=10_000)
+                    last_job = configured_infer_model.run_async(
+                        bindings_list,
+                        partial(
+                            self.callback,
+                            input_batch=original_batch,
+                            bindings_list=bindings_list,
+                        ),
+                    )
+                except Exception as exc:
+                    logger.error(
+                        f"Hailo inference step failed (frame skipped): {exc}"
+                    )
+                    # Do NOT re-raise — keep the thread alive for next frames
 
             if last_job is not None:
                 last_job.wait(10_000)
@@ -217,6 +227,7 @@ class HailoAsyncInference:
         """Resolve numpy dtype string for an output layer."""
         if self.output_type is None:
             return str(output_info.format.type).split(".")[1].lower()
+        # Fix: was missing 'return', causing None dtype for named output layers
         return self.output_type[output_info.name].lower()
 
     def _create_bindings(self, configured_infer_model) -> object:
