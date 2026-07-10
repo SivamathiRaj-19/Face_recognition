@@ -121,6 +121,7 @@ class HailoAsyncInference:
         completion_info,
         bindings_list: list,
         input_batch: list,
+        buffer_refs: list = None,
     ) -> None:
         """
         Called by the Hailo runtime when an async inference job completes.
@@ -198,12 +199,14 @@ class HailoAsyncInference:
 
                 try:
                     bindings_list = []
+                    buffer_refs = []
                     for frame in preprocessed_batch:
                         buf = np.ascontiguousarray(frame)
-                        bindings = self._create_bindings(
+                        bindings, out_bufs = self._create_bindings(
                             configured_infer_model, input_buf=buf
                         )
                         bindings_list.append(bindings)
+                        buffer_refs.append((buf, out_bufs))
 
                     configured_infer_model.wait_for_async_ready(timeout_ms=10_000)
                     last_job = configured_infer_model.run_async(
@@ -212,6 +215,7 @@ class HailoAsyncInference:
                             self.callback,
                             input_batch=original_batch,
                             bindings_list=bindings_list,
+                            buffer_refs=buffer_refs,
                         ),
                     )
                 except Exception as exc:
@@ -233,7 +237,7 @@ class HailoAsyncInference:
             return str(output_info.format.type).split(".")[1].lower()
         return self.output_type[output_info.name].lower()
 
-    def _create_bindings(self, configured_infer_model, input_buf: np.ndarray) -> object:
+    def _create_bindings(self, configured_infer_model, input_buf: np.ndarray) -> Tuple[object, dict]:
         """
         Create a fully-populated bindings object (input + all outputs).
 
@@ -252,6 +256,7 @@ class HailoAsyncInference:
         bindings.input(self._input_name).set_buffer(input_buf)
 
         # --- Outputs ---
+        out_bufs = {}
         for info in self._output_infos:
             dtype_str = self._get_output_type_str(info)
             out_buf = np.empty(
@@ -259,8 +264,9 @@ class HailoAsyncInference:
                 dtype=getattr(np, dtype_str),
             )
             bindings.output(info.name).set_buffer(out_buf)
+            out_bufs[info.name] = out_buf
 
-        return bindings
+        return bindings, out_bufs
 
 
 # ---------------------------------------------------------------------------
