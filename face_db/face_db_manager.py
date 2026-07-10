@@ -8,7 +8,12 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from loguru import logger
 
-from hailo_service.utils import cosine_similarity
+def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    """Cosine similarity between two flat float32 vectors."""
+    a = a.flatten().astype(np.float32)
+    b = b.flatten().astype(np.float32)
+    na, nb = np.linalg.norm(a), np.linalg.norm(b)
+    return float(np.dot(a, b) / (na * nb)) if na > 0 and nb > 0 else 0.0
 
 
 class FaceDBManager:
