@@ -91,6 +91,12 @@ class HailoAsyncInference:
         if output_type is not None:
             self._set_output_type(output_type)
 
+        # Resolve output names once so the callback and binding factory
+        # always use the same list without touching private attributes.
+        self._output_infos = self.hef.get_output_vstream_infos()
+        self._output_names = [info.name for info in self._output_infos]
+        self._input_name = self.hef.get_input_vstream_infos()[0].name
+
     # ------------------------------------------------------------------
     # Configuration helpers
     # ------------------------------------------------------------------
@@ -134,12 +140,12 @@ class HailoAsyncInference:
             return
 
         for i, bindings in enumerate(bindings_list):
-            if len(bindings._output_names) == 1:
-                result = bindings.output().get_buffer()
+            if len(self._output_names) == 1:
+                result = bindings.output(self._output_names[0]).get_buffer()
             else:
                 result = {
                     name: np.expand_dims(bindings.output(name).get_buffer(), axis=0)
-                    for name in bindings._output_names
+                    for name in self._output_names
                 }
             self.output_queue.put((input_batch[i], result))
 
@@ -193,12 +199,10 @@ class HailoAsyncInference:
                 try:
                     bindings_list = []
                     for frame in preprocessed_batch:
-                        # ascontiguousarray guarantees a C-contiguous uint8
-                        # buffer — avoids the HailoRT 'buffer size 0' check
-                        # failure that occurs with non-contiguous numpy views.
                         buf = np.ascontiguousarray(frame)
-                        bindings = self._create_bindings(configured_infer_model)
-                        bindings.input().set_buffer(buf)
+                        bindings = self._create_bindings(
+                            configured_infer_model, input_buf=buf
+                        )
                         bindings_list.append(bindings)
 
                     configured_infer_model.wait_for_async_ready(timeout_ms=10_000)
@@ -227,36 +231,36 @@ class HailoAsyncInference:
         """Resolve numpy dtype string for an output layer."""
         if self.output_type is None:
             return str(output_info.format.type).split(".")[1].lower()
-        # Fix: was missing 'return', causing None dtype for named output layers
         return self.output_type[output_info.name].lower()
 
-    def _create_bindings(self, configured_infer_model) -> object:
+    def _create_bindings(self, configured_infer_model, input_buf: np.ndarray) -> object:
         """
-        Allocate empty output buffers and return a bindings object.
+        Create a fully-populated bindings object (input + all outputs).
 
-        Args:
-            configured_infer_model: The active configured inference model context.
+        The correct Hailo async API pattern is:
+          1. ``create_bindings()``  — no pre-filled buffers
+          2. ``bindings.input(name).set_buffer(input_np)``
+          3. ``bindings.output(name).set_buffer(output_np)`` for each output
 
-        Returns:
-            Bindings object ready to be submitted for inference.
+        Passing ``output_buffers=`` to ``create_bindings`` leaves the input
+        binding slot uninitialized (size 0), which makes the subsequent
+        ``set_buffer`` call fail with HAILO_INVALID_OPERATION.
         """
-        if self.output_type is None:
-            output_buffers = {
-                info.name: np.empty(
-                    self.infer_model.output(info.name).shape,
-                    dtype=getattr(np, self._get_output_type_str(info)),
-                )
-                for info in self.hef.get_output_vstream_infos()
-            }
-        else:
-            output_buffers = {
-                name: np.empty(
-                    self.infer_model.output(name).shape,
-                    dtype=getattr(np, self.output_type[name].lower()),
-                )
-                for name in self.output_type
-            }
-        return configured_infer_model.create_bindings(output_buffers=output_buffers)
+        bindings = configured_infer_model.create_bindings()
+
+        # --- Input ---
+        bindings.input(self._input_name).set_buffer(input_buf)
+
+        # --- Outputs ---
+        for info in self._output_infos:
+            dtype_str = self._get_output_type_str(info)
+            out_buf = np.empty(
+                self.infer_model.output(info.name).shape,
+                dtype=getattr(np, dtype_str),
+            )
+            bindings.output(info.name).set_buffer(out_buf)
+
+        return bindings
 
 
 # ---------------------------------------------------------------------------
