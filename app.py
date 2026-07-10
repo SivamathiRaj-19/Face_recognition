@@ -250,6 +250,8 @@ def ai_inference_thread(
             last_stats_time = now
 
     logger.info("AI inference thread exiting.")
+    face_detector.stop()
+    feature_model.stop()
 
 
 # ---------------------------------------------------------------------------

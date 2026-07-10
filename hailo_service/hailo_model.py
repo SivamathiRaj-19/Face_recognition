@@ -86,6 +86,11 @@ class HAILO:
         _original_frame, result = self.output_queue.get()
         return result
 
+    def stop(self):
+        """Cleanly shutdown the inference thread."""
+        self.input_queue.put(None)
+        self._executor.shutdown(wait=False)
+
     def extract_boxes_only(self, detections: dict, image: np.ndarray, min_score: float = 0.45):
         boxes = detections["detection_boxes"]
         scores = detections["detection_scores"]
@@ -213,6 +218,11 @@ class SCRFD_HAILO:
             "face_landmarks": np.empty((0, 10), dtype=np.float32),
             "num_detections": 0,
         }
+
+    def stop(self):
+        """Cleanly shutdown the inference thread."""
+        self.input_queue.put(None)
+        self._executor.shutdown(wait=False)
 
 
 # ---------------------------------------------------------------------------
