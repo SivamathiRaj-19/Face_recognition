@@ -240,21 +240,7 @@ class HailoAsyncInference:
     def _create_bindings(self, configured_infer_model, input_buf: np.ndarray) -> Tuple[object, dict]:
         """
         Create a fully-populated bindings object (input + all outputs).
-
-        The correct Hailo async API pattern is:
-          1. ``create_bindings()``  — no pre-filled buffers
-          2. ``bindings.input(name).set_buffer(input_np)``
-          3. ``bindings.output(name).set_buffer(output_np)`` for each output
-
-        Passing ``output_buffers=`` to ``create_bindings`` leaves the input
-        binding slot uninitialized (size 0), which makes the subsequent
-        ``set_buffer`` call fail with HAILO_INVALID_OPERATION.
         """
-        bindings = configured_infer_model.create_bindings()
-
-        # --- Input ---
-        bindings.input(self._input_name).set_buffer(input_buf)
-
         # --- Outputs ---
         out_bufs = {}
         for info in self._output_infos:
@@ -263,8 +249,17 @@ class HailoAsyncInference:
                 self.infer_model.output(info.name).shape,
                 dtype=getattr(np, dtype_str),
             )
-            bindings.output(info.name).set_buffer(out_buf)
             out_bufs[info.name] = out_buf
+
+        # --- Input ---
+        in_bufs = {self._input_name: input_buf}
+
+        # Create bindings with dictionaries passed directly.
+        # This is the most reliable way in the HailoRT Python API.
+        bindings = configured_infer_model.create_bindings(
+            output_buffers=out_bufs,
+            input_buffers=in_bufs
+        )
 
         return bindings, out_bufs
 
